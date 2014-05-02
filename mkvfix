@@ -1,0 +1,107 @@
+#!/bin/ksh
+# sources fun which has functions in it
+. ./myfunctions
+
+a_s ()
+{
+export DIALOG='
+<window title="Audio and Subtitles">
+<vbox>
+<text>  <label>KEEP Audio Track ID</label>  </text>
+  <entry>  <variable>AUDIO</variable>  </entry>
+<text>  <label>KEEP Subtitle Track ID</label>  </text>  
+  <entry>  <variable>SUBTITLE</variable>  </entry>
+  <hbox>
+    <button ok></button>
+    <button cancel></button>
+  </hbox>
+</vbox>
+</window>'
+
+
+I=$IFS; IFS=""
+for STATEMENTS in  $(gtkdialog --center --program DIALOG); do
+  eval $STATEMENTS
+done
+IFS=$I
+if [ "$EXIT" = "OK" ]; then
+atrack="$AUDIO"
+strack="$SUBTITLE"
+else
+exit 0
+fi
+}
+
+choose_option ()
+{
+zenity --list --title="What to Fix" --radiolist --width=520 --height=300 \
+--column="Pick" --column="Options" --column="Description" --column="num" --hide-column=4 --print-column=4 \
+TRUE "Audio and Subtitles" "Keep Selected Audio and Subtitles" 1 \
+FALSE "Audio Only" "Keep Selected Audio" 2 \
+FALSE "Subtitles Only" "Keep Selected Subtitles" 3 \
+FALSE "RM Chap and Attachments" "Remove Chapters and Attachments" 4 \
+FALSE "RM Chapters" "Remove Chapters only" 5 \
+FALSE "RM Attachments" "Remove Attachments only" 6 \
+FALSE "Fix Titles" "Insert titles into video file" 7 \
+FALSE "Extract Audio" "Extract audio track 2 from file" 8 
+}
+
+get_audio () { zenity --entry --title="Audio ID" --text="KEEP Audio Track ID"; }
+
+get_subtitle () { zenity --entry --title="Subtitle ID" --text="KEEP Subtitle Track ID"; }
+
+optchoose=$(choose_option)
+
+if [ ! $optchoose ]; then
+exit 0
+else
+          if [ "$optchoose" == "1" ]; then
+                              a_s
+          fi
+          if [ "$optchoose" == "2" ]; then
+                    atrack=$(get_audio)
+          fi
+          if [ "$optchoose" == "3" ]; then
+                    strack=$(get_subtitle)
+          fi
+fi
+
+complete=0
+w_storage "$1" "x"
+printf "\n"
+for file in "$1"*.*; do                
+	a=$(nsp 1 "$file")                    # filename without extension
+          b=${a}zz.mkv                    # filename + zz.mkv so not to have problems with original file
+          c=$(bmkv "$file")               # basename of file used as title for video
+	case $optchoose in
+		1) mkvmerge -o "$b" --audio-tracks "$atrack" --compression 1:none --subtitle-tracks "$strack" "$file";;                    # subs and audio
+		2) mkvmerge -o "$b" --audio-tracks "$atrack" --compression 1:none "$file";;                                                # audo only                         
+		3) mkvmerge -o "$b" --subtitle-tracks "$strack" --compression 1:none "$file";;                                             # subs only	
+		4) mkvmerge -o "$b" --no-chapters --no-attachments --compression 1:none "$file";;                                          # attachments and chapters
+		5) mkvmerge -o "$b" --no-chapters --compression 1:none "$file";;                                                           # chapters only
+		6) mkvmerge -o "$b" --no-attachments --compression 1:none "$file";;                                                        # attachments only
+		7) mkvmerge -o "$b" --compression 1:none --title "$c"  "$file";;                                                           # fix title
+		8) mkvextract tracks "$file" 2:"$a".aac;;
+	esac
+	# Move file to Video_Delete if mkvmerge was sucessfull
+	if [ $? ]; then
+		if [ -f "$b" ]; then
+			if [ "$optchoose" == "7" ]; then
+				complete=$(($complete+1))                              
+				mv_vid "$file"
+				mv "$b" "$file"
+			else
+				w_storage "$(bmkv "$file")" "$(get_size "$file")" "$(get_size "$b")"
+				complete=$(($complete+1))                              
+				mv_vid "$file"
+				mv "$b" "$file"
+			fi
+		fi
+	fi
+	printf "\n"
+done
+w_storage
+f_storage
+zenity --info --text="$complete out of $2 files fixed"
+
+exit 0

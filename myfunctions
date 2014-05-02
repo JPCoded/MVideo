@@ -1,0 +1,195 @@
+#!/bin/ksh
+##############################################################################
+# This file contain functions used by mvideo, mkvfix, conv2mkv and subinst
+##############################################################################
+################################################################################
+#   w_storage 
+#          ARGS: none | <string> | <directory> <random value> | <dir basename> <filesize1> <filesize2>
+#          RTN: none
+#   f_storage 
+#          ARGS: none
+#          RTN: none
+#   video_delete 
+#          ARGS: none
+#          RTN: none
+#   get_dest
+#          ARGS: none
+#          RTN: choosen directory
+#   video_info
+#          ARGS: <directory>
+#          RTN: none
+#   mv_vid
+#          ARGS: <filename>
+#          RTN: none
+#   get_size
+#          ARGS: <filename>
+#          RTN: <filesize>
+#   f_count
+#          ARGS: <directory>
+#          RTN: <num/folders in dir>
+#   bmkv
+#          ARGS: <filename>
+#          RTN: <basename>
+#   epformat    
+#          ARGS: none
+#          RTN: none
+#   anirename        
+#          ARGS: <directory>
+#          RTN: none
+#   nsp
+#          ARGS: <filename>
+#          RTN: <filename w/o extension> | <extension>
+################################################################################
+
+################################################
+# NAME: w_storage
+# USAGE: append string from $1 to file Storage_Temp.txt
+# ARGS 0:  Append new line
+# ARGS 1: Append $1 and newline
+# ARGS 2: Append Directory, Date and Time
+# ARGS 3: Append Basename, Filesize A, Filesize B
+################################################
+function w_storage { 
+case $# in
+0) printf "\n" >> Storage_Temp.txt;;
+1) printf "$1\n" >> Storage_Temp.txt;;
+2) printf "Directory: $1\n$(date +"Date: %b %e, %Y Time: %r")\n\n" >> Storage_Temp.txt;;
+3) printf "$1 :: $2 -> $3\n" >> Storage_Temp.txt;;
+esac
+}
+
+#########################################################
+# NAME: f_storage
+# USAGE: Puts the text in Storage_Temp.txt to the front of Storage.txt
+#########################################################
+function f_storage { cat Storage.txt >> Storage_Temp.txt && cat Storage_Temp.txt > Storage.txt && rm Storage_Temp.txt; }
+
+#######################################################################################
+# NAME: video_delete                                                                                                                                                               
+# USAGE: Asks user if they want to continue, then if yes removes all files in the directory Video_Delete           
+#######################################################################################
+function video_delete { 
+zenity --question --text "Are you sure you want to remove everything in Video_Delete?"
+          if (($?==0)); then                              # if user clicked ok, then continue, else do nothing
+          count=0
+                    for file in "/media/RAID/Video/Video_Delete/"*.*; do          # for each file in the directory
+                              rm "$file"                                                                      # remove file
+                             count=$(($count+1))                                                        # increment count by 1                                                                                                     
+                    done
+          zenity --info --text="$count files removed"
+          fi
+          exit 0
+}
+
+#########################################################################################################################################
+# NAME: get_dest                                                                                                                                                                      
+# USAGE: gets directory as dest; gets length of $dest and get length of it -1; str is last character in $dest;  if $dest not '/', dest = $1"/", else dest = $1; if user cancled then exit                                                                                                         
+#########################################################################################################################################
+function get_dest {
+dest=$(zenity --file-selection --directory --filename="/media/RAID/Video/" --title="Choose a Directory")
+# gets last character from dest and checks to see if it is '/' or not, if not then insert '/' on end of videoname                          
+len=$((${#dest}-1))          # len = length of $1 - 1
+if [  "${dest:len:1}" != "/" ]; then
+         dest="$dest""/"
+else
+          dest="$dest"
+fi
+
+if [ "$dest" == "/" ]; then
+          exit 0
+else
+          echo "$dest"
+fi
+}
+
+#########################################################################################
+# NAME: video_info                                                                                                                                                                   
+# USAGE: displays the information for each mkv file in the directory in a zenity text-info box                                
+#########################################################################################
+function video_info { find "$1" -name '*.mkv' -print | avinfo -l- --html-list -o=avilist.html; }
+
+#####################################
+# NAME: mv_vid
+# USAGE: move the file $1 to the Video_Delete Folder
+#####################################
+
+function mv_vid { mv "$1" "/media/RAID/Video/Video_Delete/"; }			# move original input file to Video_Delete Folder
+
+##################################
+# NAME: get_size
+#USAGE: gets the size in mb of file $1
+##################################
+function get_size { echo $(ls -lah "$1" | awk '{ print $5}'); }
+
+###########################################################################
+# NAME: f_count
+# USAGE: counts the number of files that are in the directory. Only files that have dot extension
+###########################################################################
+function f_count {	
+          count=0
+         for file in "$1"*.*; do
+                  count=$(($count+1))                  
+         done
+         echo "$count"
+}
+
+###################################################
+# NAME: bmkv
+# USAGE: gives basename of $1 with extension .mkv
+###################################################
+function bmkv { echo "$(basename "$1" .mkv)"; }
+
+##############################################################################################################################################
+# NAME: epformat
+# USAGE: only get lines that have numbers at begining while piping output "FILLER" to Episodes and then each line from grep remove dates and number and append to Episodes
+###############################################################################################################################################
+function epformat {
+# remove junk
+grep ^[0-9] Episodes | {
+while read myline; do
+          echo ${myline#[0-9]*.} >> Episodes
+done } && zenity --text-info --filename=Episodes --width 530 --height 500
+
+exit 0
+}
+
+######################################################
+# NAME: anirename
+# USAGE: Renames all files in directory with title from Episodes
+######################################################
+function anirename {
+array=( 00 01 02 03 04 05 06 07 08 09 )
+x=1
+y=1		#variable used for converting num to 01, 02, 03, ect
+# remove junk
+grep "" Episodes | {
+while read myline; do
+          # if x is less than 10, then y equals number from array, else leave it alone
+          if [ $x -lt 10 ]; then
+                    y=${array[x]}
+          else
+                    y=$x
+          fi
+                   FILES=$(find "$1" -name *${y}.mkv)                    #find file that ends with number $y .mkv
+                    a=${FILES%.*}                                                       # Get file without extension
+                    b="$a - $myline"".mkv"                                   # b = file w/o extension + title taken from grep to end + .mkv
+                    mv "$FILES" "$b"                                                  # use mv to rename old file with new name from b 
+                    printf "$(bmkv "$FILES") -> $(bmkv "$b")\n"
+                    x=$(($x+1))
+done } | zenity --text-info --width 700 --height 700	
+ 
+exit 0
+}
+
+###########################################################
+# NAME: nsp
+# USAGE: gets file name w/o extensions or extension only
+# ARG 1: Name without extension
+# ARG 2: Extension only
+###########################################################
+function nsp {
+case $1 in
+1) echo ${2%.*};;                    
+2) echo "."${2##*.};;                
+esac
+}

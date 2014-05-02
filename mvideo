@@ -1,0 +1,60 @@
+#!/bin/ksh
+
+# sources fun which has functions in it
+. ./myfunctions
+
+####################################################
+# NAME: get_menu                                                                                
+# FUNCTION: Displays list of commands, user chooses one         
+# ZENITY TYPE: list, radiolist, width 500, height 300                      
+# COLUMNS: Pick, Command, Description, num                             
+# COL SETTINGS: Hide column 4, print column 4                           
+####################################################
+get_menu () {
+zenity --list --title="Command Choice" --radiolist --width=500 --height=300 \
+--column="Pick" --column="Command" --column="Description" --column="num" --hide-column=4 --print-column=4 \
+TRUE "Convert" "Converts video file to a MKV file" 1 \
+FALSE "Edit" "Remove audio/subtitle tracks from MKV file" 2 \
+FALSE "Subtitles" "Insert subtitle file into MKV file" 3 \
+FALSE "Mkvinfo" "Shows info on all MKV files in directory" 4 \
+FALSE "Rename" "Renames the anime using Episode List" 5 \
+FALSE "FoEpLi" "Formats the episodes list to a readable form" 6 \
+FALSE "Delete" "Deletes videos in the Video_Delete folder" 7
+}
+
+#######################################################################################################################
+#=====================================================================================================================#
+#######################################################################################################################
+#menu dialog
+menu=$(get_menu)
+
+#checks to see if cancel button was pressed and exit, 
+if [ ! $menu ]; then
+          exit 0
+fi
+
+# if user choose the Delete choice, run video_delete and exit
+if ((menu==7)); then
+video_delete
+fi
+if ((menu==6)); then
+epformat
+fi
+
+dest=$(get_dest)
+
+if [ -d "$dest" ]; then
+printf "Video Name: $dest \n"
+          case $menu in
+                    1) ./conv2mkv "$dest" "$(f_count "$dest")";;
+                    2) ./mkvfix "$dest" "$(f_count "$dest")";;
+                    3) ./subinst "$dest";;
+                    4) video_info "$dest";;                   
+                    5) anirename "$dest";;
+                    *) exit 0;;
+        esac   
+else
+        zenity --error --width=300 --text "$dest not at directory"
+fi
+
+exit 0

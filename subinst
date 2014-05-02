@@ -1,0 +1,28 @@
+#!/bin/ksh
+# sources fun which has functions in it
+. ./myfunctions
+
+get_sub (){ zenity --list --title="Subtitle File Extension" --radiolist --width=350 --height=250 --column="Pick" --column="Extension" TRUE ".srt"  FALSE ".sub" FALSE ".idx" FALSE ".ssa";}
+
+sub=$(get_sub)
+if [ ! $sub ]; then
+exit 0
+fi
+printf "Subtitle Option: "$sub
+
+for file in "$1"*.*; do
+    a=$(nsp 1 "$file")                    # name without extension
+    b=$(nsp 2 "$file")                    # extension
+	if [ "$b" != ".mkv" ]; then
+		mkvmerge -o "$a".mkv "$file" "$a$sub"		# create new mkv file with subtitles inserted
+		mv_vid "$file"								# remove old file		
+		printf "$file removed"		
+   	else
+		mkvmerge -o "$a""zz.mkv" "$file" "$a$sub"		# create new mvk file with zz added to end with subtitles inserted
+	    	mv "$a""zz.mkv" "$file"					# rename new file to the name of old file
+	fi
+move_vid "$a$sub"									# rm subtile file
+printf "$a$sub removed"
+done
+
+exit 0

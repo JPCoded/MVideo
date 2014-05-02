@@ -1,0 +1,25 @@
+#!/bin/ksh
+. ./myfunctions
+
+w_storage "$1" "x"
+
+complete=0
+
+for file in "$1"*.*; do
+
+	a=$(nsp 1 "$file")".mkv"          # a: file name without the file extension
+	b=$(nsp 2 "$file")	           # b: extension of file
+		if [ "$b" != ".mkv" ]; then			# if the file is NOT a .mkv file
+		    mkvmerge -o "$a" "--compression" "1:none" "$file"		# run mkvmerge with output being file name + .mkv and input file being the file
+                                w_storage "$(basename "$file" "$b")" "$(get_size "$file")" "$(get_size "$a")"	
+                                 mv_vid "$file"			# move original input file to Video_Delete Folder
+                               complete=$(($complete+1))                               
+                     else
+			zenity --error --text "$file is already .mkv"
+		fi
+		printf "\n"
+done 
+w_storage && f_storage
+zenity --info --text="$complete out of $2 files converted"
+
+exit 0
